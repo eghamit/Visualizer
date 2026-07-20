@@ -683,9 +683,10 @@ def run_gui():
                                 padx=4, pady=2)
 
             # Visualizer: On / Off -- mutually-exclusive tick boxes.  "Off" plots
-            # the loaded file only; "On" animates the selected field/style across
-            # every .npz in the loaded file's folder that matches the Hold Bias
-            # (one held terminal) and the Ramp Bias sweep (start:step:max).
+            # the loaded file only.  "On" animates the selected field/style across
+            # every .npz in the loaded file's folder that shares the reference
+            # operating point but sweeps the chosen Ramp Terminal -- with the
+            # Hold/Ramp terminals chosen explicitly (no value-guessing).
             ttk.Label(vec, text="Visualizer:").grid(row=2, column=0, sticky="w",
                                                     padx=4, pady=(8, 2))
             self.vis_on = tk.BooleanVar(value=False)
@@ -695,37 +696,65 @@ def run_gui():
                             ).grid(row=2, column=1, sticky="w", pady=(8, 2))
             ttk.Checkbutton(vec, text="Off", variable=self.vis_off,
                             command=lambda: self._on_vis_toggle("off")
-                            ).grid(row=2, column=2, columnspan=2, sticky="w",
+                            ).grid(row=2, column=2, columnspan=5, sticky="w",
                                    pady=(8, 2))
 
-            # Hold Bias: the single held-terminal voltage [V].
-            ttk.Label(vec, text="Hold Bias:").grid(row=3, column=0, sticky="w",
+            # Terminals: read-only, auto-discovered from the folder's .npz files
+            # (small font).  Rendered dynamically -- one box per terminal, so 2-,
+            # 3- or 4-terminal devices all display correctly.
+            ttk.Label(vec, text="Terminals:").grid(row=3, column=0, sticky="w",
+                                                   padx=4, pady=2)
+            self.term_frame = ttk.Frame(vec)
+            self.term_frame.grid(row=3, column=1, columnspan=6, sticky="w",
+                                 padx=4, pady=2)
+            self.term_boxes = []            # list of read-only Entry widgets
+            self.terminals = []             # discovered terminal names
+
+            # Hold Terminal / Ramp Terminal selectors.
+            ttk.Label(vec, text="Hold Terminal:").grid(row=4, column=0, sticky="w",
+                                                       padx=4, pady=2)
+            self.hold_term = tk.StringVar(value="")
+            self.hold_term_cb = ttk.Combobox(vec, textvariable=self.hold_term,
+                                             width=8, state="disabled", values=[])
+            self.hold_term_cb.grid(row=4, column=1, columnspan=2, sticky="w",
+                                   padx=4, pady=2)
+            ttk.Label(vec, text="Ramp Terminal:").grid(row=4, column=3,
+                                                       columnspan=2, sticky="e",
+                                                       padx=(4, 2), pady=2)
+            self.ramp_term = tk.StringVar(value="")
+            self.ramp_term_cb = ttk.Combobox(vec, textvariable=self.ramp_term,
+                                             width=8, state="disabled", values=[])
+            self.ramp_term_cb.grid(row=4, column=5, columnspan=2, sticky="w",
+                                   padx=(0, 4), pady=2)
+
+            # Hold Bias: the held terminal's voltage [V].
+            ttk.Label(vec, text="Hold Bias:").grid(row=5, column=0, sticky="w",
                                                    padx=4, pady=2)
             self.hold_var = tk.StringVar(value="")
             self.hold_entry = ttk.Entry(vec, textvariable=self.hold_var, width=8)
-            self.hold_entry.grid(row=3, column=1, columnspan=2, sticky="w",
+            self.hold_entry.grid(row=5, column=1, columnspan=2, sticky="w",
                                  padx=4, pady=2)
-            ttk.Label(vec, text="V").grid(row=3, column=3, sticky="w", pady=2)
+            ttk.Label(vec, text="V").grid(row=5, column=3, sticky="w", pady=2)
 
             # Ramp Bias: start : step : max  [V].
-            ttk.Label(vec, text="Ramp Bias:").grid(row=4, column=0, sticky="w",
+            ttk.Label(vec, text="Ramp Bias:").grid(row=6, column=0, sticky="w",
                                                    padx=4, pady=2)
             self.ramp_start = tk.StringVar(value="")
             self.ramp_step = tk.StringVar(value="")
             self.ramp_max = tk.StringVar(value="")
             self.ramp_start_e = ttk.Entry(vec, textvariable=self.ramp_start, width=6)
-            self.ramp_start_e.grid(row=4, column=1, sticky="w", padx=(4, 0), pady=2)
-            ttk.Label(vec, text=":").grid(row=4, column=2, sticky="w")
+            self.ramp_start_e.grid(row=6, column=1, sticky="w", padx=(4, 0), pady=2)
+            ttk.Label(vec, text=":").grid(row=6, column=2, sticky="w")
             self.ramp_step_e = ttk.Entry(vec, textvariable=self.ramp_step, width=6)
-            self.ramp_step_e.grid(row=4, column=3, sticky="w", padx=2, pady=2)
-            ttk.Label(vec, text=":").grid(row=4, column=4, sticky="w")
+            self.ramp_step_e.grid(row=6, column=3, sticky="w", padx=2, pady=2)
+            ttk.Label(vec, text=":").grid(row=6, column=4, sticky="w")
             self.ramp_max_e = ttk.Entry(vec, textvariable=self.ramp_max, width=6)
-            self.ramp_max_e.grid(row=4, column=5, sticky="w", padx=2, pady=2)
-            ttk.Label(vec, text="V").grid(row=4, column=6, sticky="w")
+            self.ramp_max_e.grid(row=6, column=5, sticky="w", padx=2, pady=2)
+            ttk.Label(vec, text="V").grid(row=6, column=6, sticky="w")
 
             ttk.Button(vec, text="Plot Current Density",
                        command=self.on_plot_vector
-                       ).grid(row=5, column=0, columnspan=7, sticky="we",
+                       ).grid(row=7, column=0, columnspan=7, sticky="we",
                               padx=4, pady=(6, 4))
 
             self._update_vec_vis_state()
@@ -1366,6 +1395,8 @@ def run_gui():
                 self._on_geom_toggle()
             if self.band_var.get():
                 self._on_band_toggle()
+            if self.vis_on.get():              # re-scan terminals for the new file
+                self._scan_terminals()
 
         def on_set_cut(self):
             try:
@@ -1400,9 +1431,18 @@ def run_gui():
             self.log_var.set(False)
             self.style_var.set("tcad")
             self.dir_var.set("x")
-            # reset the Current-density Visualizer back to Off
+            # reset the Current-density Visualizer back to Off + clear its inputs
             self.vis_on.set(False)
             self.vis_off.set(True)
+            for w in self.term_frame.winfo_children():
+                w.destroy()
+            self.term_boxes = []
+            self.terminals = []
+            self.hold_term_cb.configure(values=[])
+            self.ramp_term_cb.configure(values=[])
+            for v in (self.hold_term, self.ramp_term, self.hold_var,
+                      self.ramp_start, self.ramp_step, self.ramp_max):
+                v.set("")
             self._update_vec_vis_state()
             if self.fields:
                 self.field_var.set("potential" if "potential" in self.fields
@@ -1427,6 +1467,7 @@ def run_gui():
             if which == "on":
                 self.vis_on.set(True)
                 self.vis_off.set(False)
+                self._scan_terminals()          # discover + populate on turn-On
             else:
                 self.vis_off.set(True)
                 self.vis_on.set(False)
@@ -1434,11 +1475,108 @@ def run_gui():
             self._update_vec_vis_state()
 
         def _update_vec_vis_state(self):
-            """Hold/Ramp bias inputs are active only when Visualizer is On."""
-            state = "normal" if self.vis_on.get() else "disabled"
+            """Terminal selectors + bias inputs are active only when On."""
+            on = self.vis_on.get()
             for w in (self.hold_entry, self.ramp_start_e,
                       self.ramp_step_e, self.ramp_max_e):
-                w.configure(state=state)
+                w.configure(state="normal" if on else "disabled")
+            for cb in (self.hold_term_cb, self.ramp_term_cb):
+                cb.configure(state="readonly" if on else "disabled")
+
+        def _vec_folder(self):
+            """Folder to scan for the sweep, or None."""
+            return (os.path.dirname(self.loaded_path) if self.loaded_path
+                    else None) or self.folder_path
+
+        def _terminal_names(self):
+            """Canonical terminal-name list for the loaded device, or []."""
+            if self.data is not None and "terminal_names" in self.data.files:
+                return [str(x) for x in self.data["terminal_names"]]
+            folder = self._vec_folder()
+            if folder:
+                import glob
+                for f in sorted(glob.glob(os.path.join(folder, "*.npz"))):
+                    try:
+                        d = np.load(f, allow_pickle=False)
+                        names = ([str(x) for x in d["terminal_names"]]
+                                 if "terminal_names" in d.files else [])
+                        d.close()
+                    except Exception:                  # noqa: BLE001
+                        continue
+                    if names:
+                        return names
+            return []
+
+        def _scan_terminals(self):
+            """Discover terminals from the folder and fill the Terminals display
+            + Hold/Ramp dropdowns.  Names come from the stored terminal_names,
+            never from file names."""
+            from tkinter import ttk
+            names = self._terminal_names()
+            self.terminals = names
+
+            # (re)build the read-only Terminals boxes -- one per terminal, so
+            # 2-, 3- or 4-terminal devices all show correctly (small font).
+            for w in self.term_frame.winfo_children():
+                w.destroy()
+            self.term_boxes = []
+            for i, nm in enumerate(names):
+                e = ttk.Entry(self.term_frame, width=9, justify="center",
+                              font=("TkDefaultFont", 7))
+                e.insert(0, nm)
+                e.configure(state="readonly")
+                e.grid(row=0, column=i, padx=1)
+                self.term_boxes.append(e)
+
+            self.hold_term_cb.configure(values=names)
+            self.ramp_term_cb.configure(values=names)
+            if self.hold_term.get() not in names:
+                self.hold_term.set("")
+            if self.ramp_term.get() not in names:
+                self.ramp_term.set("")
+            self._prefill_bias_defaults(names)
+
+        def _prefill_bias_defaults(self, names):
+            """Best-effort defaults from the folder's operating points: ramp =
+            the widest-varying terminal, hold = the largest-|bias| held one,
+            plus the detected sweep range.  Only fills fields left blank."""
+            if not names or self.data is None \
+                    or "terminal_voltages" not in self.data.files:
+                return
+            import glob
+            ref = np.asarray(self.data["terminal_voltages"], float)
+            rows = [ref]
+            folder = self._vec_folder()
+            if folder:
+                for f in sorted(glob.glob(os.path.join(folder, "*.npz"))):
+                    try:
+                        d = np.load(f, allow_pickle=False)
+                        same = ("terminal_names" in d.files
+                                and [str(x) for x in d["terminal_names"]] == names)
+                        if same:
+                            rows.append(np.asarray(d["terminal_voltages"], float))
+                        d.close()
+                    except Exception:                  # noqa: BLE001
+                        continue
+            V = np.array(rows)
+            spread = V.max(axis=0) - V.min(axis=0)
+            ramp_i = int(np.argmax(spread))
+            held = [i for i in range(len(names)) if i != ramp_i]
+            hold_i = max(held, key=lambda i: abs(ref[i])) if held else ramp_i
+            if not self.ramp_term.get():
+                self.ramp_term.set(names[ramp_i])
+            if not self.hold_term.get():
+                self.hold_term.set(names[hold_i])
+            if not self.hold_var.get().strip():
+                self.hold_var.set("%g" % ref[hold_i])
+            uniq = np.unique(np.round(V[:, ramp_i], 9))
+            if len(uniq) >= 2:
+                if not self.ramp_start.get().strip():
+                    self.ramp_start.set("%g" % uniq[0])
+                if not self.ramp_max.get().strip():
+                    self.ramp_max.set("%g" % uniq[-1])
+                if not self.ramp_step.get().strip():
+                    self.ramp_step.set("%g" % float(np.min(np.diff(uniq))))
 
         def _parse_bias_inputs(self):
             """Parse Hold/Ramp bias entries into (hold, [ramp values]).
@@ -1508,28 +1646,55 @@ def run_gui():
                 self._mb.showerror("Plot failed", str(exc))
 
         def _plot_vector_visualizer(self, xkey, ykey, title, style):
-            """Build and start the bias-sweep animation for Visualizer=On."""
+            """Build and start the bias-sweep animation for Visualizer=On.
+
+            Hold and Ramp terminals are chosen explicitly, so selection is
+            unambiguous: a folder .npz is included iff its Hold Terminal sits at
+            the Hold Bias, its Ramp Terminal sits at one of the ramp voltages,
+            and every OTHER terminal matches the loaded reference operating
+            point.  Terminals are addressed by name -- never by file name -- and
+            the value-guessing that broke on a ground terminal at 0 V is gone.
+            """
             import glob
+            names = self.terminals or self._terminal_names()
+            hterm, rterm = self.hold_term.get(), self.ramp_term.get()
+            if not names or hterm not in names or rterm not in names:
+                self._mb.showwarning(
+                    "Visualizer",
+                    "Select a Hold Terminal and a Ramp Terminal first.")
+                return
+            if hterm == rterm:
+                self._mb.showwarning(
+                    "Visualizer",
+                    "Hold Terminal and Ramp Terminal must be different.")
+                return
             parsed = self._parse_bias_inputs()
             if parsed is None:
                 return
             hold, ramp = parsed
-            folder = (os.path.dirname(self.loaded_path) if self.loaded_path
-                      else None) or self.folder_path
+            folder = self._vec_folder()
             if not folder:
                 self._mb.showwarning(
                     "No folder", "Load a .npz from a folder of solutions first.")
                 return
 
+            hi, ri = names.index(hterm), names.index(rterm)
+            # the loaded file fixes the "other" terminals (e.g. a grounded
+            # contact); requiring them to match keeps a different bias family
+            # from leaking into the sweep.
+            ref = (np.asarray(self.data["terminal_voltages"], float)
+                   if self.data is not None
+                   and "terminal_voltages" in self.data.files else None)
             tol = 1e-6
-            # For each file: one terminal must sit at the Hold Bias and a
-            # DIFFERENT terminal at one of the ramp voltages.  Keyed off the
-            # stored terminal_voltages only -- file names are never parsed.
+
             match = {}                              # ramp value -> file path
             for f in sorted(glob.glob(os.path.join(folder, "*.npz"))):
                 try:
                     d = np.load(f, allow_pickle=False)
-                    ok = ("terminal_voltages" in d.files and xkey in d.files)
+                    ok = ("terminal_names" in d.files
+                          and "terminal_voltages" in d.files
+                          and xkey in d.files
+                          and [str(x) for x in d["terminal_names"]] == names)
                     volts = (np.asarray(d["terminal_voltages"], float)
                              if ok else None)
                     d.close()
@@ -1537,16 +1702,17 @@ def run_gui():
                     continue
                 if not ok:
                     continue
-                held = {i for i, v in enumerate(volts) if abs(v - hold) <= tol}
-                if not held:
+                if abs(volts[hi] - hold) > tol:                    # hold matches?
                     continue
-                for j, v in enumerate(volts):
-                    if not (held - {j}):           # need a hold terminal != j
-                        continue
-                    r = next((rv for rv in ramp if abs(v - rv) <= tol), None)
-                    if r is not None:
-                        match.setdefault(round(r, 9), f)
-                        break
+                r = next((rv for rv in ramp
+                          if abs(volts[ri] - rv) <= tol), None)     # ramp matches?
+                if r is None:
+                    continue
+                if ref is not None and not all(                    # others anchored?
+                        abs(volts[k] - ref[k]) <= tol
+                        for k in range(len(names)) if k not in (hi, ri)):
+                    continue
+                match.setdefault(round(r, 9), f)
 
             # keep sweep order (works for ascending or descending ramps)
             ordered = [match[round(r, 9)] for r in ramp if round(r, 9) in match]
@@ -1554,9 +1720,10 @@ def run_gui():
                 step = ramp[1] - ramp[0] if len(ramp) > 1 else 0
                 self._mb.showwarning(
                     "Visualizer",
-                    "No .npz in\n%s\nmatches Hold Bias %g V and Ramp Bias "
-                    "%g:%g:%g V.\n(Matched against each file's terminal "
-                    "voltages.)" % (folder, hold, ramp[0], step, ramp[-1]))
+                    "No .npz in\n%s\nmatches %s = %g V (hold) with %s swept "
+                    "over %g:%g:%g V.\n(Terminals matched by name against each "
+                    "file's stored voltages.)"
+                    % (folder, hterm, hold, rterm, ramp[0], step, ramp[-1]))
                 return
 
             from tkinter import ttk
