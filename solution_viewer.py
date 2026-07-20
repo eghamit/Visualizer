@@ -672,17 +672,63 @@ def run_gui():
             self.vec_var = tk.StringVar(value="Total (J)")
             ttk.Combobox(vec, textvariable=self.vec_var, width=16, state="readonly",
                          values=["Total (J)", "Electron (Jn)", "Hole (Jp)"]
-                         ).grid(row=0, column=1, sticky="w", padx=4, pady=2)
+                         ).grid(row=0, column=1, columnspan=6, sticky="w",
+                                padx=4, pady=2)
 
             ttk.Label(vec, text="Style:").grid(row=1, column=0, sticky="w", padx=4, pady=2)
             self.vec_style = tk.StringVar(value="quiver")
             ttk.Combobox(vec, textvariable=self.vec_style, width=16, state="readonly",
                          values=["quiver", "streamline"]
-                         ).grid(row=1, column=1, sticky="w", padx=4, pady=2)
+                         ).grid(row=1, column=1, columnspan=6, sticky="w",
+                                padx=4, pady=2)
+
+            # Visualizer: On / Off -- mutually-exclusive tick boxes.  "Off" plots
+            # the loaded file only; "On" animates the selected field/style across
+            # every .npz in the loaded file's folder that matches the Hold Bias
+            # (one held terminal) and the Ramp Bias sweep (start:step:max).
+            ttk.Label(vec, text="Visualizer:").grid(row=2, column=0, sticky="w",
+                                                    padx=4, pady=(8, 2))
+            self.vis_on = tk.BooleanVar(value=False)
+            self.vis_off = tk.BooleanVar(value=True)
+            ttk.Checkbutton(vec, text="On", variable=self.vis_on,
+                            command=lambda: self._on_vis_toggle("on")
+                            ).grid(row=2, column=1, sticky="w", pady=(8, 2))
+            ttk.Checkbutton(vec, text="Off", variable=self.vis_off,
+                            command=lambda: self._on_vis_toggle("off")
+                            ).grid(row=2, column=2, columnspan=2, sticky="w",
+                                   pady=(8, 2))
+
+            # Hold Bias: the single held-terminal voltage [V].
+            ttk.Label(vec, text="Hold Bias:").grid(row=3, column=0, sticky="w",
+                                                   padx=4, pady=2)
+            self.hold_var = tk.StringVar(value="")
+            self.hold_entry = ttk.Entry(vec, textvariable=self.hold_var, width=8)
+            self.hold_entry.grid(row=3, column=1, columnspan=2, sticky="w",
+                                 padx=4, pady=2)
+            ttk.Label(vec, text="V").grid(row=3, column=3, sticky="w", pady=2)
+
+            # Ramp Bias: start : step : max  [V].
+            ttk.Label(vec, text="Ramp Bias:").grid(row=4, column=0, sticky="w",
+                                                   padx=4, pady=2)
+            self.ramp_start = tk.StringVar(value="")
+            self.ramp_step = tk.StringVar(value="")
+            self.ramp_max = tk.StringVar(value="")
+            self.ramp_start_e = ttk.Entry(vec, textvariable=self.ramp_start, width=6)
+            self.ramp_start_e.grid(row=4, column=1, sticky="w", padx=(4, 0), pady=2)
+            ttk.Label(vec, text=":").grid(row=4, column=2, sticky="w")
+            self.ramp_step_e = ttk.Entry(vec, textvariable=self.ramp_step, width=6)
+            self.ramp_step_e.grid(row=4, column=3, sticky="w", padx=2, pady=2)
+            ttk.Label(vec, text=":").grid(row=4, column=4, sticky="w")
+            self.ramp_max_e = ttk.Entry(vec, textvariable=self.ramp_max, width=6)
+            self.ramp_max_e.grid(row=4, column=5, sticky="w", padx=2, pady=2)
+            ttk.Label(vec, text="V").grid(row=4, column=6, sticky="w")
 
             ttk.Button(vec, text="Plot Current Density",
                        command=self.on_plot_vector
-                       ).grid(row=2, column=0, columnspan=2, sticky="we", padx=4, pady=4)
+                       ).grid(row=5, column=0, columnspan=7, sticky="we",
+                              padx=4, pady=(6, 4))
+
+            self._update_vec_vis_state()
 
             # "Close current tab" sits at the very end of the left panel.
             ttk.Button(left, text="Close current tab", command=self.on_close_tab
@@ -1175,6 +1221,9 @@ def run_gui():
             a = self._anim
             if not a:
                 return
+            if a.get("kind") == "vector":
+                self._vec_animate_step()
+                return
             if a["idx"] >= len(a["files"]):
                 self._stop_animation()
                 return
@@ -1351,6 +1400,10 @@ def run_gui():
             self.log_var.set(False)
             self.style_var.set("tcad")
             self.dir_var.set("x")
+            # reset the Current-density Visualizer back to Off
+            self.vis_on.set(False)
+            self.vis_off.set(True)
+            self._update_vec_vis_state()
             if self.fields:
                 self.field_var.set("potential" if "potential" in self.fields
                                    else self.fields[0])
@@ -1369,18 +1422,78 @@ def run_gui():
                               "Hole current density"),
         }
 
+        def _on_vis_toggle(self, which):
+            """Keep the Visualizer On/Off tick boxes mutually exclusive."""
+            if which == "on":
+                self.vis_on.set(True)
+                self.vis_off.set(False)
+            else:
+                self.vis_off.set(True)
+                self.vis_on.set(False)
+                self._stop_animation()          # leaving On stops any sweep
+            self._update_vec_vis_state()
+
+        def _update_vec_vis_state(self):
+            """Hold/Ramp bias inputs are active only when Visualizer is On."""
+            state = "normal" if self.vis_on.get() else "disabled"
+            for w in (self.hold_entry, self.ramp_start_e,
+                      self.ramp_step_e, self.ramp_max_e):
+                w.configure(state=state)
+
+        def _parse_bias_inputs(self):
+            """Parse Hold/Ramp bias entries into (hold, [ramp values]).
+
+            Returns None (after a warning) on any invalid input.  Values may be
+            positive, negative, integer or decimal.
+            """
+            def _f(s, what):
+                s = s.strip()
+                if s == "":
+                    raise ValueError("%s is empty." % what)
+                return float(s)
+            try:
+                hold = _f(self.hold_var.get(), "Hold Bias")
+                start = _f(self.ramp_start.get(), "Ramp start")
+                step = _f(self.ramp_step.get(), "Ramp step")
+                vmax = _f(self.ramp_max.get(), "Ramp max")
+            except ValueError as exc:
+                self._mb.showwarning("Bias input", str(exc))
+                return None
+            if step == 0:
+                self._mb.showwarning("Bias input", "Ramp step cannot be 0.")
+                return None
+            if (vmax - start) * step < 0:
+                self._mb.showwarning(
+                    "Bias input",
+                    "Ramp step sign (%g) does not lead from start (%g) to "
+                    "max (%g)." % (step, start, vmax))
+                return None
+            n = int(round((vmax - start) / step))
+            ramp = [start + k * step for k in range(n + 1)]
+            return hold, ramp
+
         def on_plot_vector(self):
-            """Quiver/streamline of the current density for the LOADED file only."""
-            xkey, ykey, title = self._VEC_MAP[self.vec_var.get()]
-            style = self.vec_style.get()
+            """Plot current density.
+
+            Visualizer Off: quiver/streamline for the LOADED file only.
+            Visualizer On : animate the selected field/style across every .npz
+            in the loaded file's folder whose stored terminal voltages match the
+            Hold Bias and the Ramp Bias sweep -- matched by voltage value, never
+            by file name, so any device / terminal naming works.
+            """
             if self.data is None:
                 self._mb.showwarning("No file", "Load a .npz first.")
                 return
-            from tkinter import ttk
+            xkey, ykey, title = self._VEC_MAP[self.vec_var.get()]
+            style = self.vec_style.get()
             if xkey not in self.data.files:
                 self._mb.showwarning("Missing field",
                     "This .npz has no %s (re-save with current density)." % xkey)
                 return
+            if self.vis_on.get():
+                self._plot_vector_visualizer(xkey, ykey, title, style)
+                return
+            from tkinter import ttk
             fig, canvas = self._get_or_create_tab(ttk, "%s (%s)" % (title, style))
             try:
                 draw_vector_2d(fig, self.data, xkey, ykey, title, style,
@@ -1393,6 +1506,102 @@ def run_gui():
                 canvas.draw()
             except Exception as exc:                   # noqa: BLE001
                 self._mb.showerror("Plot failed", str(exc))
+
+        def _plot_vector_visualizer(self, xkey, ykey, title, style):
+            """Build and start the bias-sweep animation for Visualizer=On."""
+            import glob
+            parsed = self._parse_bias_inputs()
+            if parsed is None:
+                return
+            hold, ramp = parsed
+            folder = (os.path.dirname(self.loaded_path) if self.loaded_path
+                      else None) or self.folder_path
+            if not folder:
+                self._mb.showwarning(
+                    "No folder", "Load a .npz from a folder of solutions first.")
+                return
+
+            tol = 1e-6
+            # For each file: one terminal must sit at the Hold Bias and a
+            # DIFFERENT terminal at one of the ramp voltages.  Keyed off the
+            # stored terminal_voltages only -- file names are never parsed.
+            match = {}                              # ramp value -> file path
+            for f in sorted(glob.glob(os.path.join(folder, "*.npz"))):
+                try:
+                    d = np.load(f, allow_pickle=False)
+                    ok = ("terminal_voltages" in d.files and xkey in d.files)
+                    volts = (np.asarray(d["terminal_voltages"], float)
+                             if ok else None)
+                    d.close()
+                except Exception:                  # noqa: BLE001
+                    continue
+                if not ok:
+                    continue
+                held = {i for i, v in enumerate(volts) if abs(v - hold) <= tol}
+                if not held:
+                    continue
+                for j, v in enumerate(volts):
+                    if not (held - {j}):           # need a hold terminal != j
+                        continue
+                    r = next((rv for rv in ramp if abs(v - rv) <= tol), None)
+                    if r is not None:
+                        match.setdefault(round(r, 9), f)
+                        break
+
+            # keep sweep order (works for ascending or descending ramps)
+            ordered = [match[round(r, 9)] for r in ramp if round(r, 9) in match]
+            if not ordered:
+                step = ramp[1] - ramp[0] if len(ramp) > 1 else 0
+                self._mb.showwarning(
+                    "Visualizer",
+                    "No .npz in\n%s\nmatches Hold Bias %g V and Ramp Bias "
+                    "%g:%g:%g V.\n(Matched against each file's terminal "
+                    "voltages.)" % (folder, hold, ramp[0], step, ramp[-1]))
+                return
+
+            from tkinter import ttk
+            self._stop_animation()
+            atitle = "%s (%s)" % (title, style)
+            self._anim = dict(kind="vector", title=atitle, files=ordered,
+                              xkey=xkey, ykey=ykey, vtitle=title, style=style,
+                              idx=0, loop=True)
+            self._get_or_create_tab(ttk, atitle)   # create/select before frame 1
+            self._animate_step()
+
+        def _vec_animate_step(self):
+            """One frame of the Visualizer sweep, looping continuously."""
+            a = self._anim
+            if not a:
+                return
+            if a["idx"] >= len(a["files"]):
+                if a.get("loop") and a["files"]:
+                    a["idx"] = 0
+                else:
+                    self._stop_animation()
+                    return
+            from tkinter import ttk
+            f = a["files"][a["idx"]]
+            try:
+                d = np.load(f, allow_pickle=False)
+                fig, canvas = self._get_or_create_tab(ttk, a["title"])
+                draw_vector_2d(fig, d, a["xkey"], a["ykey"], a["vtitle"],
+                               a["style"], logmag=self.log_var.get())
+                fig.suptitle("[%s]   (%d/%d)"
+                             % (operating_point(d), a["idx"] + 1,
+                                len(a["files"])))
+                try:
+                    fig.tight_layout()
+                except Exception:                  # noqa: BLE001
+                    pass
+                canvas.draw()
+                d.close()
+            except Exception as exc:               # noqa: BLE001
+                self._mb.showerror("Visualizer failed",
+                                   "%s\n\n%s" % (os.path.basename(f), exc))
+                self._stop_animation()
+                return
+            a["idx"] += 1
+            self._anim_after = self.after(700, self._animate_step)
 
         def on_plot(self):
             if self.data is None:
