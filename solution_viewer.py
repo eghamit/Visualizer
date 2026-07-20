@@ -465,8 +465,17 @@ def run_gui():
     class SolutionViewer(tk.Tk):
         def __init__(self):
             super().__init__()
-            self.title("Semiconductor-Solver  .npz  viewer")
-                        # Size the window to the actual display so it fits any screen /
+            self.title("Hot Electron")
+            # window / taskbar (launcher) icon -- a small pre-scaled PNG next to
+            # this script.  Kept as an attribute so Tk doesn't garbage-collect it.
+            try:
+                _icon = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "Hot_Electron_icon.png")
+                self._icon_img = tk.PhotoImage(file=_icon)
+                self.iconphoto(True, self._icon_img)
+            except Exception:                              # noqa: BLE001
+                pass                                       # no icon file -> skip
+            # Size the window to the actual display so it fits any screen /
             # OS / hardware: take a fixed fraction of the screen (which keeps
             # the window's aspect ratio equal to the screen's) and centre it,
             # clamped to a sensible minimum.
