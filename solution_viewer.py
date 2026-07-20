@@ -465,6 +465,7 @@ def run_gui():
     class SolutionViewer(tk.Tk):
         def __init__(self):
             super().__init__()
+            """
             try:
                 import sys
                 if sys.platform == "darwin":
@@ -475,6 +476,7 @@ def run_gui():
                     NSApplication.sharedApplication().setApplicationIconImage_(img)
             except Exception:
                 pass
+            """
             self.title("Hot Electron")
             # window / taskbar (launcher) icon -- a small pre-scaled PNG next to
             # this script.  Kept as an attribute so Tk doesn't garbage-collect it.
