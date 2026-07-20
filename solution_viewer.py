@@ -520,11 +520,14 @@ def run_gui():
             # Device type (to the left of "Plot IV Curve"): controls whether
             # that button draws a single I-V curve (2 Terminal) or a family
             # of output characteristics grouped by base bias (3 Terminal).
-            self.device_var = tk.StringVar(value="2 Terminal")
-            ttk.Combobox(top, textvariable=self.device_var, width=11,
-                         state="readonly",
-                         values=["2 Terminal", "3 Terminal"]
-                         ).pack(side=tk.RIGHT, padx=(0, 4))
+            # Selecting 2/3 Terminal also auto-lists the device's Contacts on
+            # the left panel.  Defaults to "None".
+            self.device_var = tk.StringVar(value="None")
+            dev_cb = ttk.Combobox(top, textvariable=self.device_var, width=11,
+                                  state="readonly",
+                                  values=["None", "2 Terminal", "3 Terminal"])
+            dev_cb.pack(side=tk.RIGHT, padx=(0, 4))
+            dev_cb.bind("<<ComboboxSelected>>", self._on_device_change)
             ttk.Label(top, text="Device type:").pack(side=tk.RIGHT)
 
             # folder directory (top) + file name (bottom), small font
@@ -544,14 +547,29 @@ def run_gui():
             left = ttk.Frame(self, padding=8)
             left.pack(side=tk.LEFT, fill=tk.Y)
 
-            # Mesh geometry toggle (above Display Mode): auto-opens/closes a
+            # Header block (above Display Mode): mesh-geometry toggle plus the
+            # auto-listed Contacts row.  The mesh toggle auto-opens/closes a
             # dedicated mesh tab in the plot area.
+            head = ttk.Frame(left)
+            head.grid(row=0, column=0, columnspan=3, sticky="we", pady=(0, 8))
+
             self.geom_var = tk.BooleanVar(value=False)
-            ttk.Checkbutton(left, text="Show mesh geometry",
+            ttk.Checkbutton(head, text="Show mesh geometry",
                             variable=self.geom_var,
                             command=self._on_geom_toggle
-                            ).grid(row=0, column=0, columnspan=3, sticky="w",
-                                   pady=(0, 8))
+                            ).grid(row=0, column=0, columnspan=3, sticky="w")
+
+            # Contacts: read-only, auto-listed when a Device type (2/3 Terminal)
+            # is selected.  One small-font box per contact, so 2-/3-/4-contact
+            # devices all display correctly.  Names come from the stored
+            # terminal_names, never from file names.
+            ttk.Label(head, text="Contacts:").grid(row=1, column=0, sticky="w",
+                                                   pady=(8, 0))
+            self.term_frame = ttk.Frame(head)
+            self.term_frame.grid(row=1, column=1, columnspan=2, sticky="w",
+                                 pady=(8, 0))
+            self.term_boxes = []            # list of read-only Entry widgets
+            self.terminals = []             # discovered contact names
 
             # Display Mode
             ttk.Label(left, text="Display Mode:").grid(row=1, column=0,
@@ -711,62 +729,51 @@ def run_gui():
                             ).grid(row=2, column=2, columnspan=5, sticky="w",
                                    pady=(8, 2))
 
-            # Terminals: read-only, auto-discovered from the folder's .npz files
-            # (small font).  Rendered dynamically -- one box per terminal, so 2-,
-            # 3- or 4-terminal devices all display correctly.
-            ttk.Label(vec, text="Terminals:").grid(row=3, column=0, sticky="w",
-                                                   padx=4, pady=2)
-            self.term_frame = ttk.Frame(vec)
-            self.term_frame.grid(row=3, column=1, columnspan=6, sticky="w",
-                                 padx=4, pady=2)
-            self.term_boxes = []            # list of read-only Entry widgets
-            self.terminals = []             # discovered terminal names
-
-            # Hold Terminal / Ramp Terminal selectors.
-            ttk.Label(vec, text="Hold Terminal:").grid(row=4, column=0, sticky="w",
-                                                       padx=4, pady=2)
+            # Hold Contact / Ramp Contact selectors.
+            ttk.Label(vec, text="Hold Contact:").grid(row=3, column=0, sticky="w",
+                                                      padx=4, pady=2)
             self.hold_term = tk.StringVar(value="")
             self.hold_term_cb = ttk.Combobox(vec, textvariable=self.hold_term,
                                              width=8, state="disabled", values=[])
-            self.hold_term_cb.grid(row=4, column=1, columnspan=2, sticky="w",
+            self.hold_term_cb.grid(row=3, column=1, columnspan=2, sticky="w",
                                    padx=4, pady=2)
-            ttk.Label(vec, text="Ramp Terminal:").grid(row=4, column=3,
-                                                       columnspan=2, sticky="e",
-                                                       padx=(4, 2), pady=2)
+            ttk.Label(vec, text="Ramp Contact:").grid(row=3, column=3,
+                                                      columnspan=2, sticky="e",
+                                                      padx=(4, 2), pady=2)
             self.ramp_term = tk.StringVar(value="")
             self.ramp_term_cb = ttk.Combobox(vec, textvariable=self.ramp_term,
                                              width=8, state="disabled", values=[])
-            self.ramp_term_cb.grid(row=4, column=5, columnspan=2, sticky="w",
+            self.ramp_term_cb.grid(row=3, column=5, columnspan=2, sticky="w",
                                    padx=(0, 4), pady=2)
 
-            # Hold Bias: the held terminal's voltage [V].
-            ttk.Label(vec, text="Hold Bias:").grid(row=5, column=0, sticky="w",
+            # Hold Bias: the held contact's voltage [V].
+            ttk.Label(vec, text="Hold Bias:").grid(row=4, column=0, sticky="w",
                                                    padx=4, pady=2)
             self.hold_var = tk.StringVar(value="")
             self.hold_entry = ttk.Entry(vec, textvariable=self.hold_var, width=8)
-            self.hold_entry.grid(row=5, column=1, columnspan=2, sticky="w",
+            self.hold_entry.grid(row=4, column=1, columnspan=2, sticky="w",
                                  padx=4, pady=2)
-            ttk.Label(vec, text="V").grid(row=5, column=3, sticky="w", pady=2)
+            ttk.Label(vec, text="V").grid(row=4, column=3, sticky="w", pady=2)
 
             # Ramp Bias: start : step : max  [V].
-            ttk.Label(vec, text="Ramp Bias:").grid(row=6, column=0, sticky="w",
+            ttk.Label(vec, text="Ramp Bias:").grid(row=5, column=0, sticky="w",
                                                    padx=4, pady=2)
             self.ramp_start = tk.StringVar(value="")
             self.ramp_step = tk.StringVar(value="")
             self.ramp_max = tk.StringVar(value="")
             self.ramp_start_e = ttk.Entry(vec, textvariable=self.ramp_start, width=6)
-            self.ramp_start_e.grid(row=6, column=1, sticky="w", padx=(4, 0), pady=2)
-            ttk.Label(vec, text=":").grid(row=6, column=2, sticky="w")
+            self.ramp_start_e.grid(row=5, column=1, sticky="w", padx=(4, 0), pady=2)
+            ttk.Label(vec, text=":").grid(row=5, column=2, sticky="w")
             self.ramp_step_e = ttk.Entry(vec, textvariable=self.ramp_step, width=6)
-            self.ramp_step_e.grid(row=6, column=3, sticky="w", padx=2, pady=2)
-            ttk.Label(vec, text=":").grid(row=6, column=4, sticky="w")
+            self.ramp_step_e.grid(row=5, column=3, sticky="w", padx=2, pady=2)
+            ttk.Label(vec, text=":").grid(row=5, column=4, sticky="w")
             self.ramp_max_e = ttk.Entry(vec, textvariable=self.ramp_max, width=6)
-            self.ramp_max_e.grid(row=6, column=5, sticky="w", padx=2, pady=2)
-            ttk.Label(vec, text="V").grid(row=6, column=6, sticky="w")
+            self.ramp_max_e.grid(row=5, column=5, sticky="w", padx=2, pady=2)
+            ttk.Label(vec, text="V").grid(row=5, column=6, sticky="w")
 
             ttk.Button(vec, text="Plot Current Density",
                        command=self.on_plot_vector
-                       ).grid(row=7, column=0, columnspan=7, sticky="we",
+                       ).grid(row=6, column=0, columnspan=7, sticky="we",
                               padx=4, pady=(6, 4))
 
             self._update_vec_vis_state()
@@ -1407,8 +1414,8 @@ def run_gui():
                 self._on_geom_toggle()
             if self.band_var.get():
                 self._on_band_toggle()
-            if self.vis_on.get():              # re-scan terminals for the new file
-                self._scan_terminals()
+            if self.device_var.get() in ("2 Terminal", "3 Terminal"):
+                self._scan_terminals()         # re-list contacts for the new file
 
         def on_set_cut(self):
             try:
@@ -1446,14 +1453,10 @@ def run_gui():
             # reset the Current-density Visualizer back to Off + clear its inputs
             self.vis_on.set(False)
             self.vis_off.set(True)
-            for w in self.term_frame.winfo_children():
-                w.destroy()
-            self.term_boxes = []
-            self.terminals = []
-            self.hold_term_cb.configure(values=[])
-            self.ramp_term_cb.configure(values=[])
-            for v in (self.hold_term, self.ramp_term, self.hold_var,
-                      self.ramp_start, self.ramp_step, self.ramp_max):
+            self.device_var.set("None")
+            self._clear_contacts()
+            for v in (self.hold_var, self.ramp_start, self.ramp_step,
+                      self.ramp_max):
                 v.set("")
             self._update_vec_vis_state()
             if self.fields:
@@ -1475,11 +1478,15 @@ def run_gui():
         }
 
         def _on_vis_toggle(self, which):
-            """Keep the Visualizer On/Off tick boxes mutually exclusive."""
+            """Keep the Visualizer On/Off tick boxes mutually exclusive.
+
+            Visualizer only activates/deactivates the Hold Contact, Ramp
+            Contact, Hold Bias and Ramp Bias inputs -- listing the Contacts is
+            driven by the Device type selector, not by this toggle.
+            """
             if which == "on":
                 self.vis_on.set(True)
                 self.vis_off.set(False)
-                self._scan_terminals()          # discover + populate on turn-On
             else:
                 self.vis_off.set(True)
                 self.vis_on.set(False)
@@ -1487,13 +1494,34 @@ def run_gui():
             self._update_vec_vis_state()
 
         def _update_vec_vis_state(self):
-            """Terminal selectors + bias inputs are active only when On."""
+            """Hold/Ramp Contact selectors + bias inputs are active only when
+            Visualizer is On."""
             on = self.vis_on.get()
             for w in (self.hold_entry, self.ramp_start_e,
                       self.ramp_step_e, self.ramp_max_e):
                 w.configure(state="normal" if on else "disabled")
             for cb in (self.hold_term_cb, self.ramp_term_cb):
                 cb.configure(state="readonly" if on else "disabled")
+
+        def _on_device_change(self, _e=None):
+            """Device type selector: 2/3 Terminal auto-lists the device's
+            Contacts (and populates the Hold/Ramp Contact dropdowns); "None"
+            clears them."""
+            if self.device_var.get() in ("2 Terminal", "3 Terminal"):
+                self._scan_terminals()
+            else:
+                self._clear_contacts()
+
+        def _clear_contacts(self):
+            """Empty the Contacts display and the Hold/Ramp Contact dropdowns."""
+            for w in self.term_frame.winfo_children():
+                w.destroy()
+            self.term_boxes = []
+            self.terminals = []
+            self.hold_term_cb.configure(values=[])
+            self.ramp_term_cb.configure(values=[])
+            self.hold_term.set("")
+            self.ramp_term.set("")
 
         def _vec_folder(self):
             """Folder to scan for the sweep, or None."""
@@ -1520,15 +1548,15 @@ def run_gui():
             return []
 
         def _scan_terminals(self):
-            """Discover terminals from the folder and fill the Terminals display
-            + Hold/Ramp dropdowns.  Names come from the stored terminal_names,
-            never from file names."""
+            """Discover the device's contacts from the folder and fill the
+            Contacts display + Hold/Ramp Contact dropdowns.  Names come from the
+            stored terminal_names, never from file names."""
             from tkinter import ttk
             names = self._terminal_names()
             self.terminals = names
 
-            # (re)build the read-only Terminals boxes -- one per terminal, so
-            # 2-, 3- or 4-terminal devices all show correctly (small font).
+            # (re)build the read-only Contacts boxes -- one per contact, so
+            # 2-, 3- or 4-contact devices all show correctly (small font).
             for w in self.term_frame.winfo_children():
                 w.destroy()
             self.term_boxes = []
