@@ -570,6 +570,11 @@ def run_gui():
                                  pady=(8, 0))
             self.term_boxes = []            # list of read-only Entry widgets
             self.terminals = []             # discovered contact names
+            # Refresh: re-fetch the latest contacts from the selected directory.
+            ttk.Button(head, text="Refresh", width=8,
+                       command=self.on_refresh_contacts
+                       ).grid(row=1, column=3, sticky="w", padx=(6, 0),
+                              pady=(8, 0))
 
             # Display Mode
             ttk.Label(left, text="Display Mode:").grid(row=1, column=0,
@@ -1511,6 +1516,14 @@ def run_gui():
                 self._scan_terminals()
             else:
                 self._clear_contacts()
+
+        def on_refresh_contacts(self):
+            """Re-fetch the latest contacts from the selected directory."""
+            self._scan_terminals()
+            if not self.terminals:
+                self._mb.showinfo(
+                    "Refresh contacts",
+                    "No contacts found -- add a folder or load a .npz first.")
 
         def _clear_contacts(self):
             """Empty the Contacts display and the Hold/Ramp Contact dropdowns."""
