@@ -517,18 +517,6 @@ def run_gui():
 
             ttk.Button(top, text="Plot IV Curve",
                        command=self.on_plot_iv).pack(side=tk.RIGHT, padx=4)
-            # Device type (to the left of "Plot IV Curve"): controls whether
-            # that button draws a single I-V curve (2 Terminal) or a family
-            # of output characteristics grouped by base bias (3 Terminal).
-            # Selecting 2/3 Terminal also auto-lists the device's Contacts on
-            # the left panel.  Defaults to "None".
-            self.device_var = tk.StringVar(value="None")
-            dev_cb = ttk.Combobox(top, textvariable=self.device_var, width=11,
-                                  state="readonly",
-                                  values=["None", "2 Terminal", "3 Terminal"])
-            dev_cb.pack(side=tk.RIGHT, padx=(0, 4))
-            dev_cb.bind("<<ComboboxSelected>>", self._on_device_change)
-            ttk.Label(top, text="Device type:").pack(side=tk.RIGHT)
 
             # folder directory (top) + file name (bottom), small font
             info = ttk.Frame(top)
@@ -559,10 +547,10 @@ def run_gui():
                             command=self._on_geom_toggle
                             ).grid(row=0, column=0, columnspan=3, sticky="w")
 
-            # Contacts: read-only, auto-listed when a Device type (2/3 Terminal)
-            # is selected.  One small-font box per contact, so 2-/3-/4-contact
-            # devices all display correctly.  Names come from the stored
-            # terminal_names, never from file names.
+            # Contacts: read-only, auto-listed whenever a directory is selected
+            # (Add Folder) or a .npz is loaded.  One small-font box per contact,
+            # so 2-/3-/4-contact devices all display correctly.  Names come from
+            # the stored terminal_names, never from file names.
             ttk.Label(head, text="Contacts:").grid(row=1, column=0, sticky="w",
                                                    pady=(8, 0))
             self.term_frame = ttk.Frame(head)
@@ -570,11 +558,6 @@ def run_gui():
                                  pady=(8, 0))
             self.term_boxes = []            # list of read-only Entry widgets
             self.terminals = []             # discovered contact names
-            # Refresh: re-fetch the latest contacts from the selected directory.
-            ttk.Button(head, text="Refresh", width=8,
-                       command=self.on_refresh_contacts
-                       ).grid(row=1, column=3, sticky="w", padx=(6, 0),
-                              pady=(8, 0))
 
             # Display Mode
             ttk.Label(left, text="Display Mode:").grid(row=1, column=0,
@@ -977,10 +960,11 @@ def run_gui():
         def on_plot_iv(self):
             """Plot I-V from all solution_*.npz in the folder.
 
-            "2 Terminal": single I-V curve (current vs voltage of the
+            2 contacts: single I-V curve (current vs voltage of the
             widest-range / collector terminal).
-            "3 Terminal": a FAMILY of output curves -- collector current vs
-            collector voltage, one line per base bias.
+            >=3 contacts: a FAMILY of output curves -- collector current vs
+            collector voltage, one line per base bias.  Chosen automatically
+            from the number of terminals.
             """
             import glob
             folder = self.folder_path or (
@@ -1025,7 +1009,7 @@ def run_gui():
             fig.clear()
             ax = fig.add_subplot(111)
 
-            if self.device_var.get() == "3 Terminal":
+            if len(names) >= 3:
                 # base = 'b_contact', else the 2nd-widest-range terminal
                 base = _idx("b_contact")
                 if base is None:
@@ -1371,12 +1355,16 @@ def run_gui():
 
         # ---- callbacks ----------------------------------------------------
         def on_add_folder(self):
-            """Pick a folder; 'Load .npz' and 'Animate' then work from it."""
+            """Pick a folder; 'Load .npz' and 'Animate' then work from it.
+
+            Selecting a directory also auto-lists the device's Contacts.
+            """
             folder = self._fd.askdirectory(title="Select a solutions folder")
             if not folder:
                 return
             self.folder_path = folder
             self.dir_lbl.config(text=folder)
+            self._scan_terminals()             # auto-list contacts for the folder
 
         def on_load(self):
             path = self._fd.askopenfilename(
@@ -1419,8 +1407,7 @@ def run_gui():
                 self._on_geom_toggle()
             if self.band_var.get():
                 self._on_band_toggle()
-            if self.device_var.get() in ("2 Terminal", "3 Terminal"):
-                self._scan_terminals()         # re-list contacts for the new file
+            self._scan_terminals()             # auto-list contacts for the new file
 
         def on_set_cut(self):
             try:
@@ -1458,7 +1445,6 @@ def run_gui():
             # reset the Current-density Visualizer back to Off + clear its inputs
             self.vis_on.set(False)
             self.vis_off.set(True)
-            self.device_var.set("None")
             self._clear_contacts()
             for v in (self.hold_var, self.ramp_start, self.ramp_step,
                       self.ramp_max):
@@ -1486,8 +1472,9 @@ def run_gui():
             """Keep the Visualizer On/Off tick boxes mutually exclusive.
 
             Visualizer only activates/deactivates the Hold Contact, Ramp
-            Contact, Hold Bias and Ramp Bias inputs -- listing the Contacts is
-            driven by the Device type selector, not by this toggle.
+            Contact, Hold Bias and Ramp Bias inputs -- the Contacts are listed
+            automatically when a directory / file is selected, not by this
+            toggle.
             """
             if which == "on":
                 self.vis_on.set(True)
@@ -1507,23 +1494,6 @@ def run_gui():
                 w.configure(state="normal" if on else "disabled")
             for cb in (self.hold_term_cb, self.ramp_term_cb):
                 cb.configure(state="readonly" if on else "disabled")
-
-        def _on_device_change(self, _e=None):
-            """Device type selector: 2/3 Terminal auto-lists the device's
-            Contacts (and populates the Hold/Ramp Contact dropdowns); "None"
-            clears them."""
-            if self.device_var.get() in ("2 Terminal", "3 Terminal"):
-                self._scan_terminals()
-            else:
-                self._clear_contacts()
-
-        def on_refresh_contacts(self):
-            """Re-fetch the latest contacts from the selected directory."""
-            self._scan_terminals()
-            if not self.terminals:
-                self._mb.showinfo(
-                    "Refresh contacts",
-                    "No contacts found -- add a folder or load a .npz first.")
 
         def _clear_contacts(self):
             """Empty the Contacts display and the Hold/Ramp Contact dropdowns."""
