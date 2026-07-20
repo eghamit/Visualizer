@@ -465,12 +465,19 @@ def run_gui():
     class SolutionViewer(tk.Tk):
         def __init__(self):
             super().__init__()
-            super().__init__()
             self.title("Semiconductor-Solver  .npz  viewer")
-            try:
-                self.state("zoomed")              # Windows / macOS
-            except tk.TclError:
-                self.attributes("-zoomed", True)  # most Linux window managers
+                        # Size the window to the actual display so it fits any screen /
+            # OS / hardware: take a fixed fraction of the screen (which keeps
+            # the window's aspect ratio equal to the screen's) and centre it,
+            # clamped to a sensible minimum.
+            self.update_idletasks()
+            sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+            frac = 0.85
+            w = max(900, min(int(sw * frac), sw))
+            h = max(640, min(int(sh * frac), sh))
+            x = max(0, (sw - w) // 2)
+            y = max(0, (sh - h) // 2)
+            self.geometry("%dx%d+%d+%d" % (w, h, x, y))
             self.minsize(900, 640)
 
             self.data = None
