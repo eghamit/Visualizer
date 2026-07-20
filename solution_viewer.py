@@ -1522,7 +1522,7 @@ def run_gui():
             self.term_boxes = []
             for i, nm in enumerate(names):
                 e = ttk.Entry(self.term_frame, width=9, justify="center",
-                              font=("TkDefaultFont", 7))
+                              font=("TkDefaultFont", 10))
                 e.insert(0, nm)
                 e.configure(state="readonly")
                 e.grid(row=0, column=i, padx=1)
