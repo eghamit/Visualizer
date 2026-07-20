@@ -465,6 +465,16 @@ def run_gui():
     class SolutionViewer(tk.Tk):
         def __init__(self):
             super().__init__()
+            try:
+                import sys
+                if sys.platform == "darwin":
+                    from AppKit import NSApplication, NSImage
+                    _p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "Hot_Electron.png")   # any size works
+                    img = NSImage.alloc().initByReferencingFile_(_p)
+                    NSApplication.sharedApplication().setApplicationIconImage_(img)
+            except Exception:
+                pass
             self.title("Hot Electron")
             # window / taskbar (launcher) icon -- a small pre-scaled PNG next to
             # this script.  Kept as an attribute so Tk doesn't garbage-collect it.
