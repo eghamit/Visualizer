@@ -517,6 +517,20 @@ def run_gui():
             top = ttk.Frame(self, padding=6)
             top.pack(side=tk.TOP, fill=tk.X)
 
+            # Branding: a small logo to the LEFT of the "Hot Electron" name.
+            brand = ttk.Frame(top)
+            brand.pack(side=tk.LEFT, padx=(2, 10))
+            try:
+                _logo = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "Hot_Electron_logo.png")
+                self._logo_img = tk.PhotoImage(file=_logo)   # keep a reference
+                ttk.Label(brand, image=self._logo_img).pack(side=tk.LEFT,
+                                                            padx=(0, 4))
+            except Exception:                              # noqa: BLE001
+                pass                                       # no logo file -> skip
+            ttk.Label(brand, text="Hot Electron",
+                      font=("TkDefaultFont", 12, "bold")).pack(side=tk.LEFT)
+
             ttk.Button(top, text="Add Folder", command=self.on_add_folder
                        ).pack(side=tk.LEFT, padx=4)
             ttk.Button(top, text="Load .npz ...", command=self.on_load
@@ -571,9 +585,10 @@ def run_gui():
             # Display Mode
             ttk.Label(left, text="Display Mode:").grid(row=1, column=0,
                                                        sticky="w", pady=(0, 2))
-            self.mode_var = tk.StringVar(value="1D")
+            self.mode_var = tk.StringVar(value="None")
             mode_cb = ttk.Combobox(left, textvariable=self.mode_var, width=6,
-                                   state="readonly", values=["1D", "2D", "3D"])
+                                   state="readonly",
+                                   values=["None", "1D", "2D", "3D"])
             mode_cb.grid(row=1, column=1, sticky="w")
             mode_cb.bind("<<ComboboxSelected>>",
                          lambda e: self._update_mode_states())
@@ -584,10 +599,10 @@ def run_gui():
             # click then spawns a new multiplot window.
             ttk.Label(left, text="Multiplot:").grid(row=2, column=0,
                                                     sticky="w", pady=(10, 0))
-            self.multi_var = tk.StringVar(value="No")
+            self.multi_var = tk.StringVar(value="None")
             self.multi_cb = ttk.Combobox(left, textvariable=self.multi_var,
                                          width=6, state="readonly",
-                                         values=["No", "Yes"])
+                                         values=["None", "No", "Yes"])
             self.multi_cb.grid(row=2, column=1, sticky="w", pady=(10, 0))
             self.multi_cb.bind("<<ComboboxSelected>>",
                                lambda e: self._on_multi_change())
@@ -608,9 +623,10 @@ def run_gui():
             # Field  (active only when Multiplot=No)
             ttk.Label(left, text="Field:").grid(row=4, column=0, sticky="w",
                                                 pady=(6, 0))
-            self.field_var = tk.StringVar()
+            self.field_var = tk.StringVar(value="None")
             self.field_cb = ttk.Combobox(left, textvariable=self.field_var,
-                                         state="readonly", width=24)
+                                         state="readonly", width=24,
+                                         values=["None"])
             self.field_cb.grid(row=4, column=1, columnspan=2, sticky="w",
                                pady=(6, 0))
             self.field_cb.bind("<<ComboboxSelected>>", self._on_field_change)
@@ -674,10 +690,10 @@ def run_gui():
             # 3D style (active in 3D mode)
             ttk.Label(left, text="3D style:").grid(row=13, column=0, sticky="w",
                                                    pady=(0, 6))
-            self.style_var = tk.StringVar(value="tcad")
+            self.style_var = tk.StringVar(value="None")
             self.style_cb = ttk.Combobox(left, textvariable=self.style_var,
                                          width=8, state="readonly",
-                                         values=["tcad", "normal"])
+                                         values=["None", "tcad", "normal"])
             self.style_cb.grid(row=13, column=1, sticky="w", pady=(0, 6))
 
             # Plot + close-tab
@@ -696,16 +712,16 @@ def run_gui():
             vec.grid(row=15, column=0, columnspan=3, sticky="we", pady=(10, 0))
 
             ttk.Label(vec, text="Field:").grid(row=0, column=0, sticky="w", padx=4, pady=2)
-            self.vec_var = tk.StringVar(value="Total (J)")
+            self.vec_var = tk.StringVar(value="None")
             ttk.Combobox(vec, textvariable=self.vec_var, width=16, state="readonly",
-                         values=["Total (J)", "Electron (Jn)", "Hole (Jp)"]
+                         values=["None", "Total (J)", "Electron (Jn)", "Hole (Jp)"]
                          ).grid(row=0, column=1, columnspan=6, sticky="w",
                                 padx=4, pady=2)
 
             ttk.Label(vec, text="Style:").grid(row=1, column=0, sticky="w", padx=4, pady=2)
-            self.vec_style = tk.StringVar(value="quiver")
+            self.vec_style = tk.StringVar(value="None")
             ttk.Combobox(vec, textvariable=self.vec_style, width=16, state="readonly",
-                         values=["quiver", "streamline"]
+                         values=["None", "quiver", "streamline"]
                          ).grid(row=1, column=1, columnspan=6, sticky="w",
                                 padx=4, pady=2)
 
@@ -729,17 +745,19 @@ def run_gui():
             # Hold Contact / Ramp Contact selectors.
             ttk.Label(vec, text="Hold Contact:").grid(row=3, column=0, sticky="w",
                                                       padx=4, pady=2)
-            self.hold_term = tk.StringVar(value="")
+            self.hold_term = tk.StringVar(value="None")
             self.hold_term_cb = ttk.Combobox(vec, textvariable=self.hold_term,
-                                             width=8, state="disabled", values=[])
+                                             width=8, state="disabled",
+                                             values=["None"])
             self.hold_term_cb.grid(row=3, column=1, columnspan=2, sticky="w",
                                    padx=4, pady=2)
             ttk.Label(vec, text="Ramp Contact:").grid(row=3, column=3,
                                                       columnspan=2, sticky="e",
                                                       padx=(4, 2), pady=2)
-            self.ramp_term = tk.StringVar(value="")
+            self.ramp_term = tk.StringVar(value="None")
             self.ramp_term_cb = ttk.Combobox(vec, textvariable=self.ramp_term,
-                                             width=8, state="disabled", values=[])
+                                             width=8, state="disabled",
+                                             values=["None"])
             self.ramp_term_cb.grid(row=3, column=5, columnspan=2, sticky="w",
                                    padx=(0, 4), pady=2)
 
@@ -862,10 +880,10 @@ def run_gui():
                 self._mb.showerror("Plot failed", str(exc))
 
         def _update_field_state(self):
-            """Field selector is active only when Multiplot is No."""
+            """Field selector is active unless Multiplot is Yes."""
             self.field_cb.configure(
-                state="readonly" if self.multi_var.get() == "No"
-                else "disabled")
+                state="disabled" if self.multi_var.get() == "Yes"
+                else "readonly")
 
         def _update_add_multi_state(self):
             """'Add Multiplot' is active iff Multiplot=Yes (in 1D mode)."""
@@ -1088,7 +1106,7 @@ def run_gui():
             self.style_cb.configure(
                 state="readonly" if mode == "3D" else "disabled")
             if not is1d:                       # multiplot is 1D-only
-                self.multi_var.set("No")
+                self.multi_var.set("None")
             self._update_multi_details_btn()
             self._update_field_state()
             self._update_add_multi_state()
@@ -1121,7 +1139,7 @@ def run_gui():
             one at a time via the 'Add Multiplot' button."""
             if self.multi_var.get() == "Yes" and self.mode_var.get() != "1D":
                 self._mb.showinfo("Multiplot", "Multiplot is for 1D mode.")
-                self.multi_var.set("No")
+                self.multi_var.set("None")
             self._update_multi_details_btn()
             self._update_field_state()
             self._update_add_multi_state()
@@ -1402,9 +1420,10 @@ def run_gui():
                 self._mb.showerror("Load failed", str(exc))
                 return
 
-            self.field_cb["values"] = self.fields
-            self.field_var.set("potential" if "potential" in fields
-                               else fields[0])
+            # Field values include a no-op "None" default; nothing is
+            # auto-selected -- the user picks a field explicitly.
+            self.field_cb["values"] = ["None"] + self.fields
+            self.field_var.set("None")
             self._on_field_change()
             op = operating_point(data)
             self.dir_lbl.config(text=os.path.dirname(path) or ".")
@@ -1436,6 +1455,9 @@ def run_gui():
                               "Cut points updated for %s-cut." % self.cut["along"])
 
         def on_clean_plot_area(self):
+            """Clear the plot area and reset every top/left option to its
+            default (None) -- but NEVER touch the folder directory, the loaded
+            file, or the listed Contacts."""
             self._stop_animation()
             # close every open plot tab
             for title in list(self.tabs.keys()):
@@ -1443,27 +1465,30 @@ def run_gui():
             # reset multiplot state
             self.multi_windows = {}
             self._multi_counter = 0
-            # reset all left-panel controls to defaults
-            self.mode_var.set("1D")
-            self.multi_var.set("No")
+            # reset all dropdowns to the no-op "None" default
+            self.mode_var.set("None")
+            self.multi_var.set("None")
+            self.field_var.set("None")
+            self.style_var.set("None")
+            self.vec_var.set("None")
+            self.vec_style.set("None")
+            # reset toggles / radios to default
             self.geom_var.set(False)
             self.band_var.set(False)
             self.log_var.set(False)
-            self.style_var.set("tcad")
             self.dir_var.set("x")
-            # reset the Current-density Visualizer back to Off + clear its inputs
+            # Visualizer back to Off.  The Contacts stay listed (never cleared);
+            # only the Hold/Ramp Contact *selection* + bias entries reset.
             self.vis_on.set(False)
             self.vis_off.set(True)
-            self._clear_contacts()
+            self.hold_term.set("None")
+            self.ramp_term.set("None")
             for v in (self.hold_var, self.ramp_start, self.ramp_step,
                       self.ramp_max):
                 v.set("")
             self._update_vec_vis_state()
-            if self.fields:
-                self.field_var.set("potential" if "potential" in self.fields
-                                   else self.fields[0])
             self.cut = None
-            # refresh widget states + cut entries
+            # refresh widget states + cut entries (folder / file / Contacts kept)
             self._update_mode_states()          # also refreshes field/add-multi/details
             self._on_dir_change()               # relabels + prefills cut entries
 
@@ -1560,55 +1585,14 @@ def run_gui():
                 e.grid(row=0, column=i, padx=1)
                 self.term_boxes.append(e)
 
-            self.hold_term_cb.configure(values=names)
-            self.ramp_term_cb.configure(values=names)
+            # dropdown values = None + the discovered contacts; the selection
+            # stays "None" (no default) until the user chooses one.
+            self.hold_term_cb.configure(values=["None"] + names)
+            self.ramp_term_cb.configure(values=["None"] + names)
             if self.hold_term.get() not in names:
-                self.hold_term.set("")
+                self.hold_term.set("None")
             if self.ramp_term.get() not in names:
-                self.ramp_term.set("")
-            self._prefill_bias_defaults(names)
-
-        def _prefill_bias_defaults(self, names):
-            """Best-effort defaults from the folder's operating points: ramp =
-            the widest-varying terminal, hold = the largest-|bias| held one,
-            plus the detected sweep range.  Only fills fields left blank."""
-            if not names or self.data is None \
-                    or "terminal_voltages" not in self.data.files:
-                return
-            import glob
-            ref = np.asarray(self.data["terminal_voltages"], float)
-            rows = [ref]
-            folder = self._vec_folder()
-            if folder:
-                for f in sorted(glob.glob(os.path.join(folder, "*.npz"))):
-                    try:
-                        d = np.load(f, allow_pickle=False)
-                        same = ("terminal_names" in d.files
-                                and [str(x) for x in d["terminal_names"]] == names)
-                        if same:
-                            rows.append(np.asarray(d["terminal_voltages"], float))
-                        d.close()
-                    except Exception:                  # noqa: BLE001
-                        continue
-            V = np.array(rows)
-            spread = V.max(axis=0) - V.min(axis=0)
-            ramp_i = int(np.argmax(spread))
-            held = [i for i in range(len(names)) if i != ramp_i]
-            hold_i = max(held, key=lambda i: abs(ref[i])) if held else ramp_i
-            if not self.ramp_term.get():
-                self.ramp_term.set(names[ramp_i])
-            if not self.hold_term.get():
-                self.hold_term.set(names[hold_i])
-            if not self.hold_var.get().strip():
-                self.hold_var.set("%g" % ref[hold_i])
-            uniq = np.unique(np.round(V[:, ramp_i], 9))
-            if len(uniq) >= 2:
-                if not self.ramp_start.get().strip():
-                    self.ramp_start.set("%g" % uniq[0])
-                if not self.ramp_max.get().strip():
-                    self.ramp_max.set("%g" % uniq[-1])
-                if not self.ramp_step.get().strip():
-                    self.ramp_step.set("%g" % float(np.min(np.diff(uniq))))
+                self.ramp_term.set("None")
 
         def _parse_bias_inputs(self):
             """Parse Hold/Ramp bias entries into (hold, [ramp values]).
@@ -1654,8 +1638,16 @@ def run_gui():
             if self.data is None:
                 self._mb.showwarning("No file", "Load a .npz first.")
                 return
-            xkey, ykey, title = self._VEC_MAP[self.vec_var.get()]
+            if self.vec_var.get() == "None":
+                self._mb.showwarning("No field",
+                                     "Select a current-density Field.")
+                return
             style = self.vec_style.get()
+            if style == "None":
+                self._mb.showwarning("No style",
+                                     "Select a Style (quiver / streamline).")
+                return
+            xkey, ykey, title = self._VEC_MAP[self.vec_var.get()]
             if xkey not in self.data.files:
                 self._mb.showwarning("Missing field",
                     "This .npz has no %s (re-save with current density)." % xkey)
@@ -1693,7 +1685,7 @@ def run_gui():
             if not names or hterm not in names or rterm not in names:
                 self._mb.showwarning(
                     "Visualizer",
-                    "Select a Hold Terminal and a Ramp Terminal first.")
+                    "Select a Hold Contact and a Ramp Contact first.")
                 return
             if hterm == rterm:
                 self._mb.showwarning(
@@ -1808,6 +1800,10 @@ def run_gui():
                 return
             from tkinter import ttk
             mode = self.mode_var.get()
+            if mode == "None":
+                self._mb.showwarning("No display mode",
+                                     "Select a Display Mode (1D / 2D / 3D).")
+                return
             # In 1D multiplot mode, the Plot button (re)draws the currently
             # active multiplot window with the current log-scale / cut
             # settings.  New windows are created only via "Add Multiplot".
@@ -1816,11 +1812,15 @@ def run_gui():
                 return
             log = self.log_var.get()
             field = self.field_var.get()
+            if not field or field == "None":
+                self._mb.showwarning("No field", "Select a field.")
+                return
+            if mode == "3D" and self.style_var.get() == "None":
+                self._mb.showwarning("No 3D style",
+                                     "Select a 3D style (tcad / normal).")
+                return
             try:
                 if mode == "1D":
-                    if not field:
-                        self._mb.showwarning("No field", "Select a field.")
-                        return
                     along = self.dir_var.get()
                     if self.cut and self.cut["along"] == along:
                         fixed = self.cut["fixed"]
@@ -1832,9 +1832,6 @@ def run_gui():
                     draw_1d(fig, self.data, self.tri, [field],
                             along, fixed, lo, hi, log)
                 else:
-                    if not field:
-                        self._mb.showwarning("No field", "Select a field.")
-                        return
                     title = "%s (%s)" % (field, mode)
                     fig, canvas = self._get_or_create_tab(ttk, title)
                     if mode == "2D":
