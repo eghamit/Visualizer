@@ -220,19 +220,28 @@ def draw_1d(fig, data, tri, keys, along, fixed, lo, hi, logscale):
     ax.grid(True, alpha=0.3)
     ax.margins(x=0)
 
-def draw_vector_2d(fig, data, xkey, ykey, title, style="quiver", logmag=False):
-    """Quiver or streamline of a vector field, over a |·| magnitude background."""
+def draw_vector_2d(fig, data, xkey, ykey, title, style="quiver", logmag=False,
+                   bgkey=None, maglabel=None):
+    """Quiver or streamline of a vector field, over a scalar background.
+
+    The arrows always come from (xkey, ykey).  The filled contour behind them is
+    the vector magnitude |(xkey, ykey)| by default, or the scalar field `bgkey`
+    when one is given (e.g. an electric-field component).  `maglabel` sets the
+    colorbar label; it defaults to the current-density |J| label.
+    """
     fig.clear()
     ax = fig.add_subplot(111)
     x, y = data["nodes"].T
     Vx = np.asarray(data[xkey], float)
     Vy = np.asarray(data[ykey], float)
-    mag = np.hypot(Vx, Vy)
+    bg = np.hypot(Vx, Vy) if bgkey is None else np.asarray(data[bgkey], float)
+    if maglabel is None:
+        maglabel = r"$|J|\;(\mathrm{A/m^2})$"
 
     tri = _tri_um(data)
-    tcf = ax.tricontourf(tri, _values(mag, logmag), levels=60, cmap="viridis")
+    tcf = ax.tricontourf(tri, _values(bg, logmag), levels=60, cmap="viridis")
     fig.colorbar(tcf, ax=ax,
-                 label=("log10 " if logmag else "") + r"$|J|\;(\mathrm{A/m^2})$")
+                 label=("log10 " if logmag else "") + maglabel)
 
     if style == "quiver":
         step = max(1, len(x) // 400)          # thin out arrows for readability
@@ -726,7 +735,9 @@ def run_gui():
             ttk.Label(vec, text="Field:").grid(row=0, column=0, sticky="w", padx=4, pady=2)
             self.vec_var = tk.StringVar(value="None")
             ttk.Combobox(vec, textvariable=self.vec_var, width=16, state="readonly",
-                         values=["None", "Total (J)", "Electron (Jn)", "Hole (Jp)"]
+                         values=["None", "Total (J)", "Electron (Jn)",
+                                 "Hole (Jp)", "Electric field |E|",
+                                 "Electric field Ex", "Electric field Ey"]
                          ).grid(row=0, column=1, columnspan=6, sticky="w",
                                 padx=4, pady=2)
 
@@ -1504,14 +1515,29 @@ def run_gui():
             self._update_mode_states()          # also refreshes field/add-multi/details
             self._on_dir_change()               # relabels + prefills cut entries
 
+        # label -> (xkey, ykey, title, bgkey, maglabel)
+        #   xkey/ykey : vector components drawn as arrows (quiver/streamline)
+        #   bgkey     : scalar field for the filled background (None => |(x,y)|)
+        #   maglabel  : colorbar label
+        _JLAB = r"$|J|\;(\mathrm{A/m^2})$"
         _VEC_MAP = {
             "Total (J)":     ("current_density_x", "current_density_y",
-                              "Total current density"),
+                              "Total current density", None, _JLAB),
             "Electron (Jn)": ("electron_current_density_x",
                               "electron_current_density_y",
-                              "Electron current density"),
+                              "Electron current density", None, _JLAB),
             "Hole (Jp)":     ("hole_current_density_x", "hole_current_density_y",
-                              "Hole current density"),
+                              "Hole current density", None, _JLAB),
+            "Electric field |E|": ("electric_field_x", "electric_field_y",
+                                   "Electric field |E|",
+                                   "electric_field_magnitude",
+                                   r"$|E|\;(\mathrm{V/m})$"),
+            "Electric field Ex":  ("electric_field_x", "electric_field_y",
+                                   "Electric field Ex", "electric_field_x",
+                                   r"$E_x\;(\mathrm{V/m})$"),
+            "Electric field Ey":  ("electric_field_x", "electric_field_y",
+                                   "Electric field Ey", "electric_field_y",
+                                   r"$E_y\;(\mathrm{V/m})$"),
         }
 
         def _on_vis_toggle(self, which):
@@ -1659,19 +1685,22 @@ def run_gui():
                 self._mb.showwarning("No style",
                                      "Select a Style (quiver / streamline).")
                 return
-            xkey, ykey, title = self._VEC_MAP[self.vec_var.get()]
-            if xkey not in self.data.files:
-                self._mb.showwarning("Missing field",
-                    "This .npz has no %s (re-save with current density)." % xkey)
-                return
+            xkey, ykey, title, bgkey, maglabel = self._VEC_MAP[self.vec_var.get()]
+            for k in (xkey, ykey, bgkey):
+                if k is not None and k not in self.data.files:
+                    self._mb.showwarning("Missing field",
+                        "This .npz has no %s (re-save with that field)." % k)
+                    return
             if self.vis_on.get():
-                self._plot_vector_visualizer(xkey, ykey, title, style)
+                self._plot_vector_visualizer(xkey, ykey, title, style,
+                                             bgkey, maglabel)
                 return
             from tkinter import ttk
             fig, canvas = self._get_or_create_tab(ttk, "%s (%s)" % (title, style))
             try:
                 draw_vector_2d(fig, self.data, xkey, ykey, title, style,
-                               logmag=self.log_var.get())
+                               logmag=self.log_var.get(),
+                               bgkey=bgkey, maglabel=maglabel)
                 fig.suptitle("[%s]" % operating_point(self.data))
                 try:
                     fig.tight_layout()
@@ -1681,7 +1710,8 @@ def run_gui():
             except Exception as exc:                   # noqa: BLE001
                 self._mb.showerror("Plot failed", str(exc))
 
-        def _plot_vector_visualizer(self, xkey, ykey, title, style):
+        def _plot_vector_visualizer(self, xkey, ykey, title, style,
+                                    bgkey=None, maglabel=None):
             """Build and start the bias-sweep animation for Visualizer=On.
 
             Hold and Ramp terminals are chosen explicitly, so selection is
@@ -1729,7 +1759,8 @@ def run_gui():
                     d = np.load(f, allow_pickle=False)
                     ok = ("terminal_names" in d.files
                           and "terminal_voltages" in d.files
-                          and xkey in d.files
+                          and xkey in d.files and ykey in d.files
+                          and (bgkey is None or bgkey in d.files)
                           and [str(x) for x in d["terminal_names"]] == names)
                     volts = (np.asarray(d["terminal_voltages"], float)
                              if ok else None)
@@ -1767,6 +1798,7 @@ def run_gui():
             atitle = "%s (%s)" % (title, style)
             self._anim = dict(kind="vector", title=atitle, files=ordered,
                               xkey=xkey, ykey=ykey, vtitle=title, style=style,
+                              bgkey=bgkey, maglabel=maglabel,
                               idx=0, loop=True)
             self._get_or_create_tab(ttk, atitle)   # create/select before frame 1
             self._animate_step()
@@ -1788,7 +1820,8 @@ def run_gui():
                 d = np.load(f, allow_pickle=False)
                 fig, canvas = self._get_or_create_tab(ttk, a["title"])
                 draw_vector_2d(fig, d, a["xkey"], a["ykey"], a["vtitle"],
-                               a["style"], logmag=self.log_var.get())
+                               a["style"], logmag=self.log_var.get(),
+                               bgkey=a.get("bgkey"), maglabel=a.get("maglabel"))
                 fig.suptitle("[%s]   (%d/%d)"
                              % (operating_point(d), a["idx"] + 1,
                                 len(a["files"])))
